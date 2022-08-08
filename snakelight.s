@@ -9,7 +9,7 @@ boot: ; and now we know it is 07c0(*16):0000
 	mov sp, ax
 	sti
 	;; and other segments
-	mov ax, 0x07c0
+	mov ax, cs
 	mov ds, ax
 	mov es, ax
 
@@ -18,7 +18,7 @@ boot: ; and now we know it is 07c0(*16):0000
 
 	;; disable cursor
 	mov ah, 0x01
-	mov cx, 0x2000
+	mov ch, 0x20
 	int 0x10
 
 game_start:
@@ -68,22 +68,23 @@ win_check:
 	inc bx
 	loop win_check
 	or al, al
-	jz game_end
-
+	jnz short no_win
+	jmp game_end
+no_win:
 	mov ah, 0x01
 	int 0x16 ; is key ready?
-	jz end_keys ; if not: no keys
+	jz short end_keys ; if not: no keys
 	xor ah, ah
 	int 0x16 ; else get it
 	cmp ah, 0x24
-	jl end_keys
+	jl short end_keys
 	cmp ah, 0x26
-	jg maybe_toggle
+	jg short maybe_toggle
 	sub ah, 0x25
 	add [dir], ah
 maybe_toggle:
 	cmp ah, 0x39
-	jne update_player
+	jne short update_player
 	mov [growing], ah
 	xor bh, bh
 	mov bl, [start]
@@ -93,7 +94,8 @@ maybe_toggle:
 	idiv cl
 	mov ah, al
 	mov al, [x + bx]
-	shr al, 3
+	mov cl, 3
+	shr al, cl
 	call toggle
 	sub ah, 1
 	call toggle
@@ -116,18 +118,18 @@ end_keys:
 	and ch, 0x02
 	sub ch, 0x01
 	and cl, 0x01
-	jnz vert
+	jnz short vert
 horz:
 	add al, ch
-	jl end_update_player
+	jl short end_update_player
 	cmp al, 40
-	jge end_update_player
+	jge short end_update_player
 	sub ah, ch
 vert:
 	add ah, ch
-	jl end_update_player
+	jl short end_update_player
 	cmp ah, 25
-	jge end_update_player
+	jge short end_update_player
 end_move:
 
 	;; check for self-collision
@@ -138,9 +140,9 @@ end_move:
 	jmp coll_loop_end
 coll_loop_start:
 	cmp [x + bx], al
-	jne next_body ; can't be ded
+	jne short next_body ; can't be ded
 	cmp [y + bx], ah
-	je  end_update_player ; ya ded
+	je  short end_update_player ; ya ded
 next_body:
 	inc bl
 coll_loop_end:
@@ -160,9 +162,9 @@ coll_loop_end:
 	int 0x10
 
 	inc byte [length]
-	jz decbl
+	jz short decbl
 	test [growing], byte 0xFF
-	jnz end_update_player
+	jnz short end_update_player
 	mov bl, [start]
 	add bl, [length]
 	dec bl
@@ -178,13 +180,17 @@ end_update_player:
 	mov [growing], byte 0
 
 	;; wait for the next frame
-	xor cx, cx
-	mov dx, 0xFA00
-	mov ah, 0x86
-	int 0x15
+	xor ax, ax
+	int 0x1A
+	mov bl, dl
+busy_wait:
+	int 0x1A
+	cmp dl, bl
+	je busy_wait
 	;; if ya ded, no loopin
 	test [dead], byte 0xFF
-	jz loop
+	jnz short game_end
+	jmp loop
 
 game_end:
 	xor ah, ah
@@ -203,22 +209,24 @@ togglei:
 toggle:
 	push ax
 	cmp ah, 0
-	jl end_toggle
+	jl short end_toggle
 	cmp ah, 5
-	jge end_toggle
+	jge short end_toggle
 	cmp al, 0
-	jl end_toggle
+	jl short end_toggle
 	cmp al, 5
-	jge end_toggle
+	jge short end_toggle
 	xor bh, bh
 	mov bl, ah
-	shl bl, 2
+	shl bl, 1
+	shl bl, 1
 	add bl, ah
 	mov dh, bl
 	add bl, al
 	xor byte [field + bx], 0xFF
 show_cell:
-	shl al, 3
+	mov cl, 3
+	shl al, cl
 	mov cx, 0x05
 	mov dl, al
 cell_outer:
