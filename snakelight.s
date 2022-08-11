@@ -1,36 +1,5 @@
-;;; Copyright (c) 2022 Pineberry Fox
-;;;
-;;; Permission is hereby granted, free of charge, to any person obtaining
-;;; a copy of this software and associated documentation files (the
-;;; "Software"), to deal in the Software without restriction, including
-;;; without limitation the rights to use, copy, modify, merge, publish,
-;;; distribute, sublicense, and/or sell copies of the Software, and to
-;;; permit persons to whom the Software is furnished to do so, subject to
-;;; the following conditions:
-;;;
-;;; The above copyright notice and this permission notice shall be included
-;;; in all copies or substantial portions of the Software.
-;;;
-;;; THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-;;; EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-;;; MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-;;; IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-;;; CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-;;; TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-;;; SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+;;; SPDX-License-Identifier: MIT
 
-
-;;; Useful links:
-;;; * x86 instruction set:
-;;;   https://en.wikipedia.org/wiki/X86_instruction_listings
-;;; * BIOS calls:
-;;;   https://www.pcjs.org/documents/books/mspl13/msdos/encyclopedia/appendix-o/
-;;; * Keyboard scancodes:
-;;;   https://www.ssterling.net/comp/scancodes/
-;;; * Address space:
-;;;   https://wiki.osdev.org/Memory_Map_(x86)
-
-
 bits 16    ; tell NASM this is 16-bit code
 org 0 ; BIOS loads stuff to 0x7C00
 	jmp 0x07c0:boot
