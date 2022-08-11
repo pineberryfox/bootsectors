@@ -1,22 +1,23 @@
 ;;; SPDX-License-Identifier: MIT
 
 bits 16    ; tell NASM this is 16-bit code
-org 0 ; BIOS loads stuff to 0x7C00
-	jmp 0x07c0:boot
-boot: ; and now we know it is 07c0(*16):0000
+org 0x7C00 ; BIOS loads stuff to 0x7C00
+	jmp 0x0000:boot
+boot: ; and now we know it is 0000(*16):7c00
 	;; set up stack
 	cli
 	mov ax, 0x0700
 	mov ss, ax
-	mov sp, ax
+	mov sp, ax ; stack is at 0700(*16):0700 aka 0x7700
 	sti
-	;; and other segments
-	mov ax, cs
+	;; zero the other segments as well
+	xor ax, ax
 	mov ds, ax
 	mov es, ax
 
-	mov ax, 0x01
-	int 0x10     ; BIOS call - Video Services
+	;; enter CGA mode 1
+	inc ax
+	int 0x10
 
 	;; disable cursor
 	mov ah, 0x01
@@ -256,6 +257,7 @@ dw 0xAA55 ; "BOOTABLE" mark
 
 
 section .bss
+ABSOLUTE 0x0500 ; Base of initial RAM
 all_data:
 pos:     resw 256
 start:   resw 1
