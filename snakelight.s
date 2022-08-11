@@ -61,17 +61,6 @@ startup_pattern:
 
 loop:
 update_player:
-	mov cx, 25
-	xor bx, bx
-	xor al, al
-win_check:
-	or al, [field + bx]
-	inc bx
-	loop win_check
-	or al, al
-	jnz short no_win
-	jmp game_end
-no_win:
 	mov ah, 0x01
 	int 0x16 ; is key ready?
 	jz short end_keys ; if not: no keys
@@ -79,14 +68,13 @@ no_win:
 	int 0x16 ; else get it
 	;; rotation: two keys whose difference in scancodes is 2
 	;; I like J/L so I can play with only my right hand
-	cmp ah, 0x24 ; J
-	jl short end_keys
-	cmp ah, 0x26 ; L
-	jg short maybe_toggle
-	sub ah, 0x25
+	sub ah, 0x24 ; J
+	cmp ah, 0x02 ; L (- J)
+	ja short maybe_toggle
+	dec ah
 	add [dir], ah
 maybe_toggle:
-	cmp ah, 0x39
+	cmp ah, 0x39 - 0x24 ; spacebar (- J)
 	jne short update_player
 	dec byte [growing]
 	mov bx, [start]
@@ -100,14 +88,15 @@ maybe_toggle:
 	mov al, bl
 	shr al, cl
 	call toggle
+	;; now for the other four
 	dec ah
 	call toggle
 	add ah, 2
 	call toggle
 	dec ah
-	dec al
+	inc ax
 	call toggle
-	add al, 2
+	sub al, 2
 	call toggle
 	jmp update_player
 end_keys:
@@ -178,6 +167,16 @@ decbl:
 end_update_player:
 	mov [growing], byte 0
 
+	mov cx, 25
+	xor bx, bx
+	xor al, al
+win_check:
+	or al, [field + bx]
+	inc bx
+	loop win_check
+	or al, al
+	jz short game_end
+
 	;; wait for the next frame
 	xor ax, ax
 	int 0x1A
@@ -240,7 +239,7 @@ cell_inner:
 	mov cx, 0x01
 	int 0x10
 	pop cx
-	inc dl
+	inc dx
 	loop cell_inner
 	sub dl, 8
 	pop cx
