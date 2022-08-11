@@ -37,13 +37,12 @@ game_start:
 	;; set up screen
 setup_attributes:
 	mov ah, 0x02
-	mov [dir], ah
 	xor bx, bx
 	xor dx, dx
 	int 0x10
 	mov ax, 0x0920
 	mov bl, 0x0D
-	mov cx, 25*40
+	mov cx, 25 * 40
 	int 0x10
 
 	xor ax, ax
@@ -54,12 +53,22 @@ startup_pattern:
 	call togglei
 	pop cx
 	pop ax
-	add ax, 2
+	inc ax
+	inc ax
 	loop startup_pattern
 
 	int 0x16
 
 loop:
+	;; wait for the next frame
+	xor ax, ax
+	int 0x1A
+	mov bl, dl
+busy_wait:
+	int 0x1A
+	cmp dl, bl
+	je busy_wait
+
 update_player:
 	mov ah, 0x01
 	int 0x16 ; is key ready?
@@ -100,7 +109,7 @@ maybe_toggle:
 	call toggle
 	jmp update_player
 end_keys:
-	dec byte [dead]
+	xor dx, dx
 	mov bx, [start]
 	shl bx, 1
 	mov ax, [pos + bx]
@@ -111,14 +120,14 @@ end_keys:
 	and cl, 0x01
 	jnz short vert
 horz:
-	add al, ch
+	sub al, ch
 	cmp al, 40
-	jae short end_update_player
-	sub ah, ch
-vert:
+	jae short game_end ; ya ded
 	add ah, ch
+vert:
+	sub ah, ch
 	cmp ah, 25
-	jae short end_update_player
+	jae short game_end ; ya ded
 end_move:
 
 	;; check for self-collision
@@ -128,16 +137,17 @@ end_move:
 	jmp coll_loop_end
 coll_loop_start:
 	cmp [pos + bx], ax
-	je short end_update_player ; ya ded
+	je short game_end ; ya ded
 next_body:
-	add bx, 2
+	inc bx
+	inc bx
 	and bh, 1
 coll_loop_end:
 	loop coll_loop_start
-	inc byte [dead]
 
-	dec byte [start]
-	mov bx, [start]
+	mov bx, start
+	dec byte [bx]
+	mov bx, [bx]
 	shl bx, 1
 	mov [pos + bx], ax
 	mov dx, ax
@@ -165,29 +175,16 @@ coll_loop_end:
 decbl:
 	dec byte [length]
 end_update_player:
-	mov [growing], byte 0
-
 	mov cx, 25
-	xor bx, bx
-	xor al, al
+	mov bx, field - 1
+	xor ax, ax
+	mov [growing], al
 win_check:
-	or al, [field + bx]
 	inc bx
+	or al, [bx]
 	loop win_check
-	or al, al
 	jz short game_end
 
-	;; wait for the next frame
-	xor ax, ax
-	int 0x1A
-	mov bl, dl
-busy_wait:
-	int 0x1A
-	cmp dl, bl
-	je busy_wait
-	;; if ya ded, no loopin
-	test [dead], byte 0xFF
-	jnz short game_end
 	jmp loop
 
 game_end:
@@ -251,7 +248,10 @@ end_toggle:
 
 
 	;; end
-times 510 - ($-$$) db 0x90 ; fill up the remainder of the 510-byte segment
+times 440 - ($-$$) db 0x90 ; fill up the remainder of the 440-byte code
+db "PINE"
+dq 0x0000
+times 510 - ($-$$) db 0x00 ; no partitions
 dw 0xAA55 ; "BOOTABLE" mark
 
 
@@ -262,6 +262,5 @@ start:   resw 1
 length:  resw 1
 dir:     resb 1
 growing: resb 1
-dead:    resb 1
 field:   resb 25
 end_all_data:
