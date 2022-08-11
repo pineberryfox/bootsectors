@@ -243,14 +243,10 @@ togglei:
 	;; col: al
 toggle:
 	push ax
-	cmp ah, 0
-	jl short end_toggle
-	cmp ah, 5
-	jge short end_toggle
-	cmp al, 0
-	jl short end_toggle
-	cmp al, 5
-	jge short end_toggle
+	cmp ah, 4
+	ja short end_toggle
+	cmp al, 4
+	ja short end_toggle
 	xor bh, bh
 	mov bl, ah
 	shl bl, 1
@@ -258,7 +254,7 @@ toggle:
 	add bl, ah
 	mov dh, bl
 	add bl, al
-	xor byte [field + bx], 0xFF
+	not byte [field + bx]
 show_cell:
 	mov cl, 3
 	shl al, cl
