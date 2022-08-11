@@ -62,8 +62,7 @@ game_start:
 	cld
 	rep stosb
 	;; set up player
-	mov [x], byte 0x14
-	mov [y], byte 0x0C
+	mov [pos], word 0x0C14 ; y=0C, x=14
 	mov [length], byte 1
 
 	;; set up screen
@@ -120,74 +119,69 @@ no_win:
 maybe_toggle:
 	cmp ah, 0x39
 	jne short update_player
-	mov [growing], ah
-	xor bh, bh
-	mov bl, [start]
-	xor ah, ah
-	mov al, [y + bx]
-	mov cl, 0x05
-	idiv cl
-	mov ah, al
-	mov al, [x + bx]
+	dec byte [growing]
+	mov bx, [start]
+	shl bx, 1
+	xor dx, dx
+	mov ax, [pos + bx]
+	mov bl, al
+	mov cx, 0x0005
+	idiv cx
 	mov cl, 3
+	mov al, bl
 	shr al, cl
 	call toggle
-	sub ah, 1
+	dec ah
 	call toggle
 	add ah, 2
 	call toggle
-	sub ah, 1
-	sub al, 1
+	dec ah
+	dec al
 	call toggle
 	add al, 2
 	call toggle
 	jmp update_player
 end_keys:
-	mov [dead], byte 0xFF
-	xor bh, bh
-	mov bl, byte [start]
-	mov al, [x + bx]
-	mov ah, [y + bx]
+	dec byte [dead]
+	mov bx, [start]
+	shl bx, 1
+	mov ax, [pos + bx]
 	mov cl, [dir]
 	mov ch, cl
 	and ch, 0x02
-	sub ch, 0x01
+	dec ch
 	and cl, 0x01
 	jnz short vert
 horz:
 	add al, ch
-	jl short end_update_player
 	cmp al, 40
-	jge short end_update_player
+	jae short end_update_player
 	sub ah, ch
 vert:
 	add ah, ch
-	jl short end_update_player
 	cmp ah, 25
-	jge short end_update_player
+	jae short end_update_player
 end_move:
 
 	;; check for self-collision
-	xor ch, ch
-	mov cl, [length]
-	xor bh, bh
-	mov bl, [start]
+	mov cx, [length]
+	mov bx, [start]
+	shl bx, 1
 	jmp coll_loop_end
 coll_loop_start:
-	cmp [x + bx], al
-	jne short next_body ; can't be ded
-	cmp [y + bx], ah
-	je  short end_update_player ; ya ded
+	cmp [pos + bx], ax
+	je short end_update_player ; ya ded
 next_body:
-	inc bl
+	add bx, 2
+	and bh, 1
 coll_loop_end:
 	loop coll_loop_start
-	mov [dead], byte 0x00
+	inc byte [dead]
 
 	dec byte [start]
-	mov bl, byte [start]
-	mov [x + bx], al
-	mov [y + bx], ah
+	mov bx, [start]
+	shl bx, 1
+	mov [pos + bx], ax
 	mov dx, ax
 	mov ah, 0x02
 	xor bh, bh
@@ -198,13 +192,14 @@ coll_loop_end:
 
 	inc byte [length]
 	jz short decbl
-	test [growing], byte 0xFF
-	jnz short end_update_player
-	mov bl, [start]
+	inc byte [growing]
+	jz short end_update_player
+	mov bx, [start]
 	add bl, [length]
 	dec bl
-	mov dh, [y + bx]
-	mov dl, [x + bx]
+	shl bx, 1
+	mov dx, [pos + bx]
+	xor bh, bh
 	mov ah, 0x02
 	int 0x10 ; put cursor at old tail
 	mov ax, 0x0A20
@@ -294,10 +289,9 @@ dw 0xAA55 ; "BOOTABLE" mark
 
 section .bss
 all_data:
-x:       resb 256
-y:       resb 256
-start:   resb 1
-length:  resb 1
+pos:     resw 256
+start:   resw 1
+length:  resw 1
 dir:     resb 1
 growing: resb 1
 dead:    resb 1
