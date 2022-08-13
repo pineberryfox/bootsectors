@@ -39,7 +39,7 @@ game_start:
 setup_attributes:
 	mov ah, 0x02
 	xor bx, bx
-	xor dx, dx
+	cwd
 	int 0x10
 	mov ax, 0x0920
 	mov bl, 0x0D
@@ -89,8 +89,8 @@ maybe_toggle:
 	dec byte [growing]
 	mov bx, [start]
 	shl bx, 1
-	xor dx, dx
 	mov ax, [pos + bx]
+	cwd
 	mov bl, al
 	mov cx, 0x0005
 	idiv cx
@@ -110,10 +110,10 @@ maybe_toggle:
 	call toggle
 	jmp update_player
 end_keys:
-	xor dx, dx
 	mov bx, [start]
 	shl bx, 1
 	mov ax, [pos + bx]
+	cwd
 	mov cl, [dir]
 	mov ch, cl
 	and ch, 0x02
