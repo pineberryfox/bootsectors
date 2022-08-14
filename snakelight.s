@@ -33,7 +33,6 @@ game_start:
 	rep stosb
 	;; set up player
 	mov [pos], word 0x0C14 ; y=0C, x=14
-	mov [length], byte 1
 
 	;; set up screen
 setup_attributes:
@@ -135,7 +134,7 @@ end_move:
 	mov cx, [length]
 	mov bx, [start]
 	shl bx, 1
-	jmp coll_loop_end
+	jcxz coll_loop_end
 coll_loop_start:
 	cmp [pos + bx], ax
 	je short game_end ; ya ded
@@ -143,8 +142,8 @@ next_body:
 	inc bx
 	inc bx
 	and bh, 1
-coll_loop_end:
 	loop coll_loop_start
+coll_loop_end:
 
 	mov bx, start
 	dec byte [bx]
@@ -165,7 +164,6 @@ coll_loop_end:
 	jz short end_update_player
 	mov bx, [start]
 	add bl, [length]
-	dec bl
 	shl bx, 1
 	mov dx, [pos + bx]
 	xor bh, bh
