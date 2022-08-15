@@ -222,6 +222,7 @@ show_cell:
 cell_outer:
 	push cx
 	mov cx, 0x08
+	push dx
 cell_inner:
 	mov ax, 0x0200
 	xor bh, bh
@@ -237,7 +238,7 @@ cell_inner:
 	pop cx
 	inc dx
 	loop cell_inner
-	sub dl, 8
+	pop dx
 	pop cx
 	inc dh
 	loop cell_outer
