@@ -38,14 +38,22 @@ init_field:
 	call handle_clears
 	;xor ax, ax
 	;mov [score], ax
-	;jmp setup
 
 main_loop:
 	call wait_frame
-	;mov byte [rotated], 0
+.in:
+	mov ah, 0x02
+	xor bx, bx
+	mov dx, [pos]
+	add dx, 0x0a11
+	int 0x10
+	mov cx, 0x0607
+	mov ah, 0x01
+	int 0x10
+
 	mov ah, 1
 	int 0x16
-	jnz short main_loop ; no characters
+	jnz short .end_move ; no characters
 	xor ax, ax
 	int 0x16
 
@@ -53,72 +61,66 @@ main_loop:
 	jne short .not_w
 	mov bx, pos + 1
 	dec byte [bx]
-	jnz .end_move
+	jns short .in
 	inc byte [bx]
-	jmp .end_move
+	jmp .in
 .not_w:
-	cmp ah, 0x39
-	jne short .not_space
-	call rotate_ccw
-	jmp .end_move
-.not_space:
-	sub ah, 0x1E
+	mov bp, ccw_indices
+	sub ah, 0x10
+	jz short .cclock
+	cmp ah, 2
+	ja short .no_rot
+	mov bp, cw_indices
+.cclock:
+	call rotate
+	jmp .in
+.no_rot:
+	sub ah, 0x0E
 	cmp ah, 2
 	ja short .not_asd
 	mov bx, pos
 	dec ah
-	jnz .horz
-	cmp byte [bx + 1], 6
-	je .horz
+	jnz short .horz
+	cmp byte [bx + 1], 5
+	je short .horz
 	inc byte [bx + 1]
 .horz:
 	add ah, [bx]
-	jz .end_move
-	cmp ah, 6
-	ja .end_move
+	cmp ah, 5
+	ja short .in
 	mov [bx], ah
 .not_asd:
 .end_move:
-	;test byte [rotated], 0xff
-	;jz short show_curs
-	call handle_clears
 setup:
 	call show_score
-show_curs:
-	mov ah, 0x02
-	xor bx, bx
-	mov dx, [pos]
-	add dx, 0x0910
-	int 0x10
-	mov cx, 0x0607
-	mov ah, 0x01
-	int 0x10
 	jmp main_loop
 
-rotate_ccw:
+rotate:
+	xor ax, ax
 	mov bx, [pos]
-	sub bx, 0x0101
 	mov cl, 3
 	shl bh, cl
 	add bl, bh
 	xor bh, bh
-	mov al, [bx]
-	mov dl, [bx + 1]
-	mov [bx], dl
-	mov dl, [bx + 2]
-	mov [bx + 1], dl
-	mov dl, [bx + 10]
-	mov [bx + 2], dl
-	mov dl, [bx + 18]
-	mov [bx + 10], dl
-	mov dl, [bx + 17]
-	mov [bx + 18], dl
-	mov dl, [bx + 16]
-	mov [bx + 17], dl
-	mov dl, [bx + 8]
-	mov [bx + 16], dl
-	mov [bx + 8], al
-	ret
+	mov dl, [bx]
+	mov cx, 7
+.loop:
+	mov si, cx
+	mov di, cx
+	dec si
+	mov al, [cs:bp+si]
+	mov si, ax
+	mov al, [cs:bp+di]
+	mov di, ax
+	mov dh, [bx+si]
+	mov [bx+di], dh
+	loop .loop
+	mov [bx+si], dl
+	jmp handle_clears
+ccw_indices:
+	db 8, 16, 17, 18, 10, 2, 1, 0
+cw_indices:
+	db 1, 2, 10, 18, 17, 16, 8, 0
 
 handle_clears:
 	mov byte [did_clear], 0
@@ -319,7 +321,7 @@ show_score:
 	;db "VXN~" ; identifier
 	;dq 0x0000
 	;times 510 - ($-$$) db 0x00 ; no partitions
-	times 510 - ($-$$) db 0x00 ; no partitions
+	times 510 - ($-$$) db 0x90 ; no partitions
 	dw 0xAA55 ; "BOOTABLE" mark
 
 
@@ -330,6 +332,4 @@ pos:       resw 1
 score:     resw 1
 temp:      resw 1
 did_clear: resb 1
-rotated:   resb 1
-init_end: ; leave rand uninitialized
 rnd:       resw 2
