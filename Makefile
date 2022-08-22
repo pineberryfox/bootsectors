@@ -11,8 +11,8 @@
 	qrencode -o "$@" -8 < "$<"
 
 .PHONY : all-images
-all-images : snakelight.img
+all-images : blockchain.img snakelight.img
 .PHONY : all-qr
-all-qr : snakelight.png
+all-qr : blockchain.png snakelight.png
 .PHONY : all
 all : all-images all-qr
