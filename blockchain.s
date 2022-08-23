@@ -1,6 +1,6 @@
 ;;; SPDX-License-Identifier: MIT
 
-TO_MATCH equ 3
+TO_MATCH equ 5
 
 bits 16
 org 0x7C00
@@ -22,25 +22,29 @@ boot:	; work around old Compaq BIOS having weird segments
 	or [rnd], al ; guarantee non-zero
 	int 0x10
 
+
+	;; init_field
 	cld
-	mov di, field
+	xor di, di ; field
 	mov cx, 32
-init_field:
-	push cx
-	call rand
-	pop cx
-	mov bx, 0x0303
-	mov [pos], bx ; convenient intialization
-	and ax, bx
-	add ax, bx
-	stosw
-	loop init_field
+	mov ax, 0x0303
+	mov [pos], ax ; convenient initialization
+	rep stosw
 	call handle_clears
-	;xor ax, ax
-	;mov [score], ax
+	xor ax, ax
+	mov [score], ax
 
 main_loop:
-	call wait_frame
+	;; wait for the next frame
+;; 	xor ax, ax
+;; 	int 0x1A
+;; 	mov bl, dl
+;; .busy_wait:
+;; 	int 0x1A
+;; 	cmp dl, bl
+;; 	je short .busy_wait
+	hlt
+
 .in:
 	mov ah, 0x02
 	xor bx, bx
@@ -73,7 +77,7 @@ main_loop:
 	mov bp, cw_indices
 .cclock:
 	call rotate
-	jmp .in
+	jmp .end_move
 .no_rot:
 	sub ah, 0x0E
 	cmp ah, 2
@@ -116,24 +120,15 @@ rotate:
 	mov [bx+di], dh
 	loop .loop
 	mov [bx+si], dl
-	jmp handle_clears
-ccw_indices:
-	db 8, 16, 17, 18, 10, 2, 1, 0
-cw_indices:
-	db 1, 2, 10, 18, 17, 16, 8, 0
+	;jmp handle_clears
+	;; tail-call
+	;; by lack-of anything
 
 handle_clears:
 	mov byte [did_clear], 0
-	call check_clears
-	call gravity
-	call show_field
-	call wait_frame
-	test byte [did_clear], 0xff
-	jnz short handle_clears
-	ret
 
-check_clears:
-	mov bx, field
+check_clears: ; inlined
+	xor bx, bx ; field
 	mov cx, 8
 .check_row:
 	mov ah, 0xff
@@ -149,9 +144,7 @@ check_clears:
 	je short .same_as_prev
 	cmp dl, TO_MATCH
 	jb short .small_chain
-	push ax
 	call zero_fill
-	pop ax
 .small_chain:
 	mov ah, al
 	xor dx, dx
@@ -165,21 +158,8 @@ check_clears:
 	pop cx
 	add bx, 8
 	loop .check_row
-	ret
 
-zero_fill:
-	push cx
-	;add [score], dx
-	mov [did_clear], dl
-	add cx, bx
-	mov di, cx
-	mov cx, dx
-	xor ax, ax
-	rep stosb
-	pop cx
-	ret
-
-gravity:
+gravity: ; inlined
 	mov bp, temp
 	mov bx, field + (6 * 8)
 	mov cx, 7
@@ -209,11 +189,9 @@ gravity:
 .fill:
 	test byte [bx], 0xff
 	jnz short .nonempty
-	push cx
 	push bx
 	call rand
 	pop bx
-	pop cx
 	mov ah, 3
 	and al, ah
 	add al, ah
@@ -222,24 +200,27 @@ gravity:
 .nonempty:
 	dec bx
 	loop .fill
-	test byte [bp], 0xff
-	jnz short gravity
-	ret
+	neg byte [bp]
+	js short gravity
+
+	neg byte [did_clear]
+	jns short show_field
+	jmp handle_clears
+	;; tail-call / tail-recursion
 
 show_field:
 	mov ch, 0x20 ; no cursor!
 	mov ah, 0x01
 	int 0x10
 
-	mov si, field
-	mov cx, 8
+	xor si, si ; field
+	mov di, 8
 	mov dx, 0x0910
 .show_base_field:
-	push cx
 	mov cx, 8
-	push dx
 .show_base_row:
 	push dx
+	push cx
 	mov ah, 0x02
 	xor bx, bx
 	int 0x10 ; cursor position
@@ -247,74 +228,78 @@ show_field:
 	lodsb
 	mov bx, ax
 	mov ah, 0x09
-	push cx
 	mov cl, 0x01
 	int 0x10 ; character and attributes
 	pop cx
 	pop dx
 	inc dx
 	loop .show_base_row
-	pop dx
-	pop cx
-	inc dh
-	loop .show_base_field
+	add dx, 0x00F8
+	dec di
+	jnz .show_base_field
 	ret
 
-wait_frame:
-	;; wait for the next frame
-	xor ax, ax
-	int 0x1A
-	mov bl, dl
-.busy_wait:
-	int 0x1A
-	cmp dl, bl
-	je short .busy_wait
+zero_fill:
+	push cx
+	add [score], dx
+	mov [did_clear], dl
+	add cx, bx
+	mov di, cx
+	mov cx, dx
+	xor al, al
+	rep stosb
+	pop cx
 	ret
 
 rand:
+	push cx
 	mov bx, rnd
-	mov ax, [bx + 2]
-	mov cl, 5
-	mov dx, ax
-	shl ax, cl
-	xor dx, ax
 	mov ax, [bx]
-	mov [bx + 2], ax
-	mov cx, ax
-	shr ax, 1
-	xor ax, cx
+	mov dx, ax
 	mov cl, 3
+	shl dx, cl
 	xor ax, dx
-	shr dx, cl
+	mov dx, ax
+	shr dx, 1
+	xor ax, dx
+	mov dx, ax
+	mov cl, 12
+	shl dx, cl
 	xor ax, dx
 	mov [bx], ax
+	pop cx
 	ret
 
 show_score:
-;; 	mov ax, [score]
-;; 	mov word [temp], 0x1217
-;; .loop:
-;; 	push ax
-;; 	mov ah, 2
-;; 	xor bx, bx
-;; 	mov dx, [temp]
-;; 	int 0x10
-;; 	pop ax
-;; 	mov cx, 10
-;; 	xor dx, dx
-;; 	div cx
-;; 	push ax
-;; 	mov al, dl
-;; 	add al, 0x30
-;; 	mov ah, 0x0a
-;; 	xor bx, bx
-;; 	mov cx, 1
-;; 	int 0x10
-;; 	pop ax
-;; 	dec word [temp]
-;; 	or ax, ax
-;; 	jnz short .loop
+	mov ax, [score]
+	mov word [temp], 0x1217
+.loop:
+	push ax
+	mov ah, 2
+	xor bx, bx
+	mov dx, [temp]
+	int 0x10
+	pop ax
+	mov cx, 10
+	xor dx, dx
+	div cx
+	push ax
+	mov al, dl
+	add al, 0x30
+	mov ah, 0x0a
+	xor bx, bx
+	mov cx, 1
+	int 0x10
+	pop ax
+	dec word [temp]
+	or ax, ax
+	jnz short .loop
 	ret
+
+ccw_indices:
+	db 8, 16, 17, 18, 10, 2, 1, 0
+cw_indices:
+	db 1, 2, 10, 18, 17, 16, 8, 0
 
 	;; end
 	;times 440 - ($ - $$) db 0x90 ;NOP the rest of the code section
@@ -332,4 +317,4 @@ pos:       resw 1
 score:     resw 1
 temp:      resw 1
 did_clear: resb 1
-rnd:       resw 2
+rnd:       resw 1
