@@ -44,7 +44,6 @@ main_loop:
 ;; 	cmp dl, bl
 ;; 	je short .busy_wait
 	hlt
-
 .in:
 	mov ah, 0x02
 	xor bx, bx
@@ -100,6 +99,11 @@ setup:
 	jmp main_loop
 
 rotate:
+	dec byte [time] ; decrease remaining rotations
+	jns .in
+	cli ; none left? that's a loss.
+	hlt ; reboot to play again
+.in:
 	xor ax, ax
 	mov bx, [pos]
 	mov cl, 3
@@ -241,6 +245,7 @@ show_field:
 
 zero_fill:
 	push cx
+	mov byte [time], 5
 	add [score], dx
 	mov [did_clear], dl
 	add cx, bx
@@ -271,29 +276,26 @@ rand:
 	ret
 
 show_score:
+	push es
+	mov ax, 0xB800
+	mov es, ax
 	mov ax, [score]
-	mov word [temp], 0x1217
-.loop:
-	push ax
-	mov ah, 2
-	xor bx, bx
-	mov dx, [temp]
-	int 0x10
-	pop ax
 	mov cx, 10
+	mov di, 0x05CE
+	std
+.loop:
+	sub bx, 2
 	xor dx, dx
 	div cx
+	add dx, 0x0730
 	push ax
-	mov al, dl
-	add al, 0x30
-	mov ah, 0x0a
-	xor bx, bx
-	mov cx, 1
-	int 0x10
+	mov ax, dx
+	stosw
 	pop ax
-	dec word [temp]
 	or ax, ax
 	jnz short .loop
+	cld
+	pop es
 	ret
 
 ccw_indices:
@@ -315,6 +317,7 @@ ABSOLUTE 0 ; Base of initial RAM
 field:     resb 64
 pos:       resw 1
 score:     resw 1
-temp:      resw 1
+time:      resb 1
+temp:      resb 1
 did_clear: resb 1
 rnd:       resw 1
