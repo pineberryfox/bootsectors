@@ -35,15 +35,6 @@ boot:	; work around old Compaq BIOS having weird segments
 	mov [score], ax
 
 main_loop:
-	;; wait for the next frame
-;; 	xor ax, ax
-;; 	int 0x1A
-;; 	mov bl, dl
-;; .busy_wait:
-;; 	int 0x1A
-;; 	cmp dl, bl
-;; 	je short .busy_wait
-	hlt
 .in:
 	mov ah, 0x02
 	xor bx, bx
@@ -54,9 +45,7 @@ main_loop:
 	mov ah, 0x01
 	int 0x10
 
-	mov ah, 1
-	int 0x16
-	jnz short .end_move ; no characters
+	;; blocking wait for keypress
 	xor ax, ax
 	int 0x16
 
@@ -100,9 +89,8 @@ setup:
 
 rotate:
 	dec byte [time] ; decrease remaining rotations
-	jns .in
-	cli ; none left? that's a loss.
-	hlt ; reboot to play again
+	jns short .in
+	jmp boot ; lost :c ... restart! by resetting everything!
 .in:
 	xor ax, ax
 	mov bx, [pos]
@@ -133,7 +121,7 @@ handle_clears:
 
 check_clears: ; inlined
 	xor bx, bx ; field
-	mov cx, 8
+	mov cl, 8 ; it's zero'd from above
 .check_row:
 	mov ah, 0xff
 	xor dx, dx
@@ -279,12 +267,17 @@ show_score:
 	push es
 	mov ax, 0xB800
 	mov es, ax
+	mov di, 0x05D2
+	std
+	mov al, [time]
+	or al, 0x30
+	stosb
+	xor ax, ax
+	dec di
+	stosw
 	mov ax, [score]
 	mov cx, 10
-	mov di, 0x05CE
-	std
 .loop:
-	sub bx, 2
 	xor dx, dx
 	div cx
 	add dx, 0x0730
