@@ -41,9 +41,6 @@ main_loop:
 	mov dx, [pos]
 	add dx, 0x0a11
 	int 0x10
-	mov cx, 0x0607
-	mov ah, 0x01
-	int 0x10
 
 	;; blocking wait for keypress
 	xor ax, ax
@@ -197,38 +194,27 @@ gravity: ; inlined
 
 	neg byte [did_clear]
 	jns short show_field
-	jmp handle_clears
+	jmp handle_clears ; cx is still 0 from the above LOOP
 	;; tail-call / tail-recursion
 
 show_field:
-	mov ch, 0x20 ; no cursor!
-	mov ah, 0x01
-	int 0x10
-
+	push es
+	mov ax, 0xB800
+	mov es, ax
+	mov di, 0x02f0
 	xor si, si ; field
-	mov di, 8
-	mov dx, 0x0910
-.show_base_field:
+	mov dx, 8
+.row:
 	mov cx, 8
-.show_base_row:
-	push dx
-	push cx
-	mov ah, 0x02
-	xor bx, bx
-	int 0x10 ; cursor position
-	xor ax, ax
-	lodsb
-	mov bx, ax
-	mov ah, 0x09
-	mov cl, 0x01
-	int 0x10 ; character and attributes
-	pop cx
-	pop dx
-	inc dx
-	loop .show_base_row
-	add dx, 0x00F8
-	dec di
-	jnz .show_base_field
+.cell:
+	movsb
+	dec si
+	movsb
+	loop .cell
+	add di, 80 - 16
+	dec dx
+	jnz .row
+	pop es
 	ret
 
 zero_fill:
