@@ -22,7 +22,6 @@ boot:	; work around old Compaq BIOS having weird segments
 	or [rnd], al ; guarantee non-zero
 	int 0x10
 
-
 	;; init_field
 	cld
 	xor di, di ; field
@@ -31,8 +30,7 @@ boot:	; work around old Compaq BIOS having weird segments
 	mov [pos], ax ; convenient initialization
 	rep stosw
 	call handle_clears
-	xor ax, ax
-	mov [score], ax
+	mov [score], dx ; zeroed in handle_clears
 
 main_loop:
 .in:
@@ -46,9 +44,9 @@ main_loop:
 	xor ax, ax
 	int 0x16
 
+	mov bx, pos + 1
 	cmp ah, 0x11
 	jne short .not_w
-	mov bx, pos + 1
 	dec byte [bx]
 	jns short .in
 	inc byte [bx]
@@ -61,19 +59,22 @@ main_loop:
 	ja short .no_rot
 	mov bp, cw_indices
 .cclock:
+	dec byte [time] ; decrease remaining rotations
+	js short boot ; lost :c ... restart! by resetting everything!
 	call rotate
 	jmp .end_move
 .no_rot:
 	sub ah, 0x0E
 	cmp ah, 2
 	ja short .not_asd
-	mov bx, pos
+	;; mov bx, pos + 1 ; still set from above
 	dec ah
 	jnz short .horz
-	cmp byte [bx + 1], 5
+	cmp byte [bx], 5
 	je short .horz
-	inc byte [bx + 1]
+	inc byte [bx]
 .horz:
+	dec bx
 	add ah, [bx]
 	cmp ah, 5
 	ja short .in
@@ -85,10 +86,6 @@ setup:
 	jmp main_loop
 
 rotate:
-	dec byte [time] ; decrease remaining rotations
-	jns short .in
-	jmp boot ; lost :c ... restart! by resetting everything!
-.in:
 	xor ax, ax
 	mov bx, [pos]
 	mov cl, 3
@@ -133,7 +130,8 @@ check_clears: ; inlined
 	je short .same_as_prev
 	cmp dl, TO_MATCH
 	jb short .small_chain
-	call zero_fill
+	call zero_fill ; al is zero'd here for stosb
+	;; so this pass-through works fine!
 .small_chain:
 	mov ah, al
 	xor dx, dx
@@ -149,53 +147,39 @@ check_clears: ; inlined
 	loop .check_row
 
 gravity: ; inlined
-	mov bp, temp
-	mov bx, field + (6 * 8)
-	mov cx, 7
-	mov [bp], ch
-.gravity_rows:
-	push cx
-	mov cx, 8
-.gravity_row:
-	mov ax, cx
-	dec ax
-	mov si, ax
-	add ax, 8
-	mov di, ax
-	xlat
-	or al, al
-	jnz short .end_row
-	mov ah, [bx+si]
-	mov [bx+di], ah
-	mov [bx+si], al
-.end_row:
-	loop .gravity_row
-	pop cx
-	sub bx, 8
-	loop .gravity_rows
-	mov bx, field + 7
-	mov cx, 8
+	mov si, field + (6 * 8) + 7
+	mov di, field + (7 * 8) + 7
+	xor bp, bp
+	xor cx, cx
+.gravity_cell:
+	cmp [di], ch
+	jnz short .end_cell
+	mov ah, [si]
+	mov [di], ah
+	mov [si], ch
+.end_cell:
+	dec di
+	dec si
+	jns short .gravity_cell
 .fill:
-	test byte [bx], 0xff
+	cmp byte [di], ch ; ch remains zero (as does cl)
 	jnz short .nonempty
-	push bx
 	call rand
-	pop bx
 	mov ah, 3
 	and al, ah
 	add al, ah
-	mov [bx], al
-	inc byte [bp] ; never more than 8
+	mov [di], al
+	inc bp ; never more than 8
 .nonempty:
-	dec bx
-	loop .fill
-	neg byte [bp]
+	dec di
+	jns short .fill ; relies on field being 0
+	neg bp
 	js short gravity
 
 	neg byte [did_clear]
-	jns short show_field
-	jmp handle_clears ; cx is still 0 from the above LOOP
-	;; tail-call / tail-recursion
+	js short handle_clears ; cx is still 0 from the above LOOP
+	;; tail-recursion
+	;; call show_field by fall-through
 
 show_field:
 	push es
@@ -230,6 +214,12 @@ zero_fill:
 	pop cx
 	ret
 
+	;; xorshift:
+	;; x ^= x << 3
+	;; x ^= x >> 1
+	;; x ^= x << 12
+	;; this one has a complete period,
+	;; and lets us avoid a cl store
 rand:
 	push cx
 	mov bx, rnd
@@ -283,11 +273,10 @@ cw_indices:
 	db 1, 2, 10, 18, 17, 16, 8, 0
 
 	;; end
-	;times 440 - ($ - $$) db 0x90 ;NOP the rest of the code section
-	;db "VXN~" ; identifier
-	;dq 0x0000
-	;times 510 - ($-$$) db 0x00 ; no partitions
-	times 510 - ($-$$) db 0x90 ; no partitions
+	times 440 - ($ - $$) db 0x90 ;NOP the rest of the code section
+	db "VXN~" ; identifier
+	dw 0x0000
+	times 510 - ($-$$) db 0x00 ; no partitions
 	dw 0xAA55 ; "BOOTABLE" mark
 
 
@@ -297,6 +286,5 @@ field:     resb 64
 pos:       resw 1
 score:     resw 1
 time:      resb 1
-temp:      resb 1
 did_clear: resb 1
 rnd:       resw 1
