@@ -3,8 +3,9 @@
 TO_MATCH equ 5
 
 bits 16
+cpu 8086
 org 0x7C00
-	;jmp 0x0000:boot
+	jmp 0x0000:boot
 boot:	; work around old Compaq BIOS having weird segments
 	;; set up stack
 	cli
@@ -43,9 +44,10 @@ main_loop:
 	;; blocking wait for keypress
 	xor ax, ax
 	int 0x16
+	mov al, ah
 
 	mov bx, pos + 1
-	cmp ah, 0x11
+	cmp al, 0x11
 	jne short .not_w
 	dec byte [bx]
 	jns short .in
@@ -53,32 +55,32 @@ main_loop:
 	jmp .in
 .not_w:
 	mov bp, ccw_indices
-	sub ah, 0x10
+	sub al, 0x10
 	jz short .cclock
-	cmp ah, 2
+	cmp al, 2
 	ja short .no_rot
-	mov bp, cw_indices
+	add bp, 8
 .cclock:
-	dec byte [time] ; decrease remaining rotations
+	dec byte [bx + time - (pos + 1)] ; decrease rotations
 	js short boot ; lost :c ... restart! by resetting everything!
 	call rotate
 	jmp .end_move
 .no_rot:
-	sub ah, 0x0E
-	cmp ah, 2
+	sub al, 0x0E
+	cmp al, 2
 	ja short .not_asd
 	;; mov bx, pos + 1 ; still set from above
-	dec ah
+	dec al
 	jnz short .horz
 	cmp byte [bx], 5
 	je short .horz
 	inc byte [bx]
 .horz:
 	dec bx
-	add ah, [bx]
-	cmp ah, 5
+	add al, [bx]
+	cmp al, 5
 	ja short .in
-	mov [bx], ah
+	mov [bx], al
 .not_asd:
 .end_move:
 setup:
