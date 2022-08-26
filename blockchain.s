@@ -37,7 +37,7 @@ main_loop:
 .in:
 	mov ah, 0x02
 	xor bx, bx
-	mov dx, [pos]
+	mov dx, [bx + pos]
 	add dx, 0x0a11
 	int 0x10
 
@@ -83,17 +83,16 @@ main_loop:
 	mov [bx], al
 .not_asd:
 .end_move:
-setup:
 	call show_score
 	jmp main_loop
 
 rotate:
-	xor ax, ax
-	mov bx, [pos]
-	mov cl, 3
-	shl bh, cl
-	add bl, bh
-	xor bh, bh
+	mov ax, [pos]
+	mov cl, 32
+	div cl
+	add al, ah
+	cbw
+	xchg ax, bx ; bh was 0, so ah is 0 now
 	mov dl, [bx]
 	mov cx, 7
 .loop:
@@ -101,9 +100,9 @@ rotate:
 	mov di, cx
 	dec si
 	mov al, [cs:bp+si]
-	mov si, ax
+	xchg ax, si
 	mov al, [cs:bp+di]
-	mov di, ax
+	xchg ax, di
 	mov dh, [bx+si]
 	mov [bx+di], dh
 	loop .loop
@@ -118,9 +117,7 @@ handle_clears:
 
 check_clears: ; inlined
 	xor di, di
-	mov cl, 8 ; it's zero'd from above
 .check_row:
-	push cx
 	mov cl, 8
 .check_cell:
 	mov dx, cx
@@ -147,19 +144,19 @@ check_clears: ; inlined
 	inc cx
 	loop .check_cell
 .end_check_row:
-	pop cx
-	loop .check_row
+	cmp di, 64
+	jc .check_row
 
 gravity: ; inlined
 	mov si, field + (6 * 8) + 7
 	mov di, field + (7 * 8) + 7
 	xor bp, bp
-	xor cx, cx
 .gravity_cell:
 	cmp [di], ch
 	jnz short .end_cell
-	mov ah, [si]
-	mov [di], ah
+	movsb
+	dec si
+	dec di
 	mov [si], ch
 .end_cell:
 	dec di
@@ -168,10 +165,33 @@ gravity: ; inlined
 .fill:
 	cmp byte [di], ch ; ch remains zero (as does cl)
 	jnz short .nonempty
-	call rand
-	mov ah, 3
-	and al, ah
-	add al, ah
+
+	;; xorshift:
+	;; x ^= x << 3
+	;; x ^= x >> 1
+	;; x ^= x << 12
+	;; this one has a complete period,
+	;; and lets us avoid a cl store
+.rand: ; inlined
+	push cx
+	mov bl, rnd ; bh is zero whenever this is called
+	mov ax, [bx]
+	mov dx, ax
+	mov cl, 3
+	shl dx, cl
+	xor ax, dx
+	mov dx, ax
+	shr dx, 1
+	xor ax, dx
+	mov dx, ax
+	mov cl, 12
+	shl dx, cl
+	xor ax, dx
+	mov [bx], ax
+	pop cx
+
+	and al, 3
+	add al, 3
 	mov [di], al
 	inc bp ; never more than 8
 .nonempty:
@@ -180,7 +200,7 @@ gravity: ; inlined
 	neg bp
 	js short gravity
 
-	neg byte [did_clear]
+	neg byte [di + did_clear + 1] ; di==-1 was the exit condition
 	js short handle_clears ; cx is still 0 from the above LOOP
 	;; tail-recursion
 	;; call show_field by fall-through
@@ -205,36 +225,11 @@ show_field:
 	pop es
 	ret
 
-	;; xorshift:
-	;; x ^= x << 3
-	;; x ^= x >> 1
-	;; x ^= x << 12
-	;; this one has a complete period,
-	;; and lets us avoid a cl store
-rand:
-	push cx
-	mov bx, rnd
-	mov ax, [bx]
-	mov dx, ax
-	mov cl, 3
-	shl dx, cl
-	xor ax, dx
-	mov dx, ax
-	shr dx, 1
-	xor ax, dx
-	mov dx, ax
-	mov cl, 12
-	shl dx, cl
-	xor ax, dx
-	mov [bx], ax
-	pop cx
-	ret
-
 show_score:
 	push es
 	mov ax, 0xB800
 	mov es, ax
-	mov di, 0x05D2
+	mov di, 0x05D2 ; position appropriately in memory
 	std
 	mov al, [time]
 	or al, 0x30
@@ -248,10 +243,9 @@ show_score:
 	xor dx, dx
 	div cx
 	add dx, 0x0730
-	push ax
-	mov ax, dx
+	xchg ax, dx
 	stosw
-	pop ax
+	xchg ax, dx
 	or ax, ax
 	jnz short .loop
 	cld
