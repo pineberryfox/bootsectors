@@ -113,39 +113,41 @@ rotate:
 	;; by lack-of anything
 
 handle_clears:
-	mov byte [did_clear], 0
+	xor bx, bx
+	mov byte [bx + did_clear], cl ; zero'd by above loop
 
 check_clears: ; inlined
-	xor bx, bx ; field
+	xor di, di
 	mov cl, 8 ; it's zero'd from above
 .check_row:
-	mov ah, 0xff
-	xor dx, dx
 	push cx
-	mov cx, 8
+	mov cl, 8
 .check_cell:
-	mov al, cl
-	dec ax
-	xlat
-	inc dx
-	cmp al, ah
-	je short .same_as_prev
+	mov dx, cx
+	mov al, [di]
+	repz scasb
+	jz .nodec ; ran out of string
+	dec di ; else we're one past the first different thing
+	inc cx
+.nodec:
+	sub dx, cx
 	cmp dl, TO_MATCH
 	jb short .small_chain
-	call zero_fill ; al is zero'd here for stosb
+	push cx
+	mov byte [bx + time], 5
+	add [bx + score], dx
+	mov [bx + did_clear], dl
+	sub di, dx
+	xor al, al
+	mov cx, dx
+	rep stosb
+	pop cx
 	;; so this pass-through works fine!
 .small_chain:
-	mov ah, al
-	xor dx, dx
-.same_as_prev:
+	inc cx
 	loop .check_cell
-	inc dx
-	cmp dl, TO_MATCH
-	jb short .end_check_row
-	call zero_fill
 .end_check_row:
 	pop cx
-	add bx, 8
 	loop .check_row
 
 gravity: ; inlined
@@ -201,19 +203,6 @@ show_field:
 	dec dx
 	jnz .row
 	pop es
-	ret
-
-zero_fill:
-	push cx
-	mov byte [time], 5
-	add [score], dx
-	mov [did_clear], dl
-	add cx, bx
-	mov di, cx
-	mov cx, dx
-	xor al, al
-	rep stosb
-	pop cx
 	ret
 
 	;; xorshift:
